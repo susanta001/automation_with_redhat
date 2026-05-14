@@ -1,0 +1,46 @@
+---
+- name: Deploy and run network management scripts
+  hosts: clients
+  become: yes
+  gather_facts: no
+
+  vars:
+    log_file: /tmp/full_script_log.txt
+    scripts:
+      - name: firewall-setup.sh
+        path: /tmp/firewall-setup.sh
+        type: bash
+      - name: dns-manager.py
+        path: /tmp/dns-manager.py
+        type: python
+      - name: network-diag.py
+        path: /tmp/network-diag.py
+        type: python
+      - name: interface-configurations.sh
+        path: /tmp/interface-configurations.sh
+        type: bash
+
+  tasks:
+
+    - name: Upload all scripts
+      copy:
+        src: "{{ item.name }}"
+        dest: "{{ item.path }}"
+        mode: '0755'
+      loop: "{{ scripts }}"
+
+    - name: Run all scripts and log output
+      shell: |
+        echo "===== START: {{ item.name }} =====" >> {{ log_file }}
+        echo "Timestamp: $(date)" >> {{ log_file }}
+        {{ 'bash' if item.type == 'bash' else 'python3' }} {{ item.path }} >> {{ log_file }} 2>&1
+        echo "===== END: {{ item.name }} =====" >> {{ log_file }}
+        echo "" >> {{ log_file }}
+      loop: "{{ scripts }}"
+      ignore_errors: yes
+
+    - name: Final timestamp in log
+      lineinfile:
+        path: "{{ log_file }}"
+        line: "All scripts executed at {{ lookup('pipe', 'date') }}"
+
